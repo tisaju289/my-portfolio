@@ -1,39 +1,33 @@
 FROM php:8.2-apache
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    libzip-dev zip unzip git \
-    && docker-php-ext-install pdo_mysql zip
-
-# Enable Apache mod_rewrite
+# Apache mod_rewrite enable
 RUN a2enmod rewrite
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Install required system packages and extensions
+RUN apt-get update && apt-get install -y \
+    zip unzip git && \
+    docker-php-ext-install pdo_mysql
 
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy files
+# Install composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy all files
 COPY . /var/www/html
 
-# Composer install
+# Install dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Generate APP_KEY automatically
-RUN php artisan key:generate --force
-
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html \
+# Laravel permissions fix
+RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Set Apache document root to public
+# Set Apache DocumentRoot to Laravel public directory
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
-    && sed -ri -e 's!AllowOverride None!AllowOverride All!g' /etc/apache2/apache2.conf \
-    && sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+    && sed -ri -e 's!AllowOverride None!AllowOverride All!g' /etc/apache2/apache2.conf
 
 EXPOSE 80
